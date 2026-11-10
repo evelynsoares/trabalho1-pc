@@ -84,175 +84,88 @@
 \section{Introdução}
 %======================================================================
 
-Em programação concorrente, \emph{threads} que cooperam por memória
-compartilhada correm o risco de \emph{condições de corrida}: se duas delas
-acessam o mesmo dado sem coordenação e pelo menos uma escreve, o resultado
-passa a depender da ordem em que o escalonador intercala suas instruções.
-Como essa ordem muda a cada execução, os erros aparecem em uma execução e
-podem sumir na seguinte. Para evitá-los, as \emph{threads} são
-sincronizadas com mecanismos como \emph{locks}, variáveis de condição e
-semáforos.
-
-Este trabalho aplica esses mecanismos a um problema de Manna e Pnueli,
+Quando \emph{threads} cooperam por memória compartilhada, acessos não
+coordenados a um mesmo dado geram \emph{condições de corrida}: o resultado
+passa a depender da intercalação escolhida pelo escalonador e pode mudar de
+uma execução para outra. Este trabalho estuda um problema de Manna e Pnueli
 apresentado por Ben-Ari (2006, Apêndice C, exercício 8): calcular o
-coeficiente binomial $\binom{n}{k}$ com dois processos, um para o numerador e
-outro para o denominador. O denominador entrega resultados parciais ao
-numerador, que divide assim que os recebe, impedindo que os valores
-intermediários cresçam demais. Essa comunicação acontece por memória
-compartilhada e, sem sincronização, está sujeita a condições de corrida. A
-solução foi implementada em C com POSIX Pthreads. A
-Seção~\ref{sec:formalizacao} formaliza o problema, a
-Seção~\ref{sec:algoritmo} descreve o algoritmo, a implementação e os testes,
-e a Seção~\ref{sec:conclusao} conclui o trabalho.
+coeficiente binomial $\binom{n}{k}$ com um processo para o numerador e outro
+para o denominador, que entrega resultados parciais para que as divisões
+sejam feitas imediatamente, mantendo pequenos os valores intermediários. A
+comunicação entre os dois é sincronizada com semáforos e implementada em C
+com POSIX Pthreads.
 
 
 %======================================================================
 \section{Formalização do Problema Proposto}
-\label{sec:formalizacao}
 %======================================================================
 
-\subsection{O Coeficiente Binomial}
+\subsection{Coeficiente Binomial e Resultados Parciais}
 
 Para inteiros $0 \le k \le n$,
-\begin{equation}
-    \binom{n}{k} = \frac{n!}{(n-k)!\,k!}
-                 = \frac{n \cdot (n-1) \cdots (n-k+1)}{1 \cdot 2 \cdots k},
-\end{equation}
-ou seja, há $k$ fatores no numerador e $k$ no denominador. Calcular o
-numerador inteiro e só dividir no final é inviável mesmo para valores
-modestos: em $\binom{30}{15}$, o numerador
-$30 \cdot 29 \cdots 16 \approx 2{,}0 \times 10^{20}$ não cabe em 64 bits
-($\approx 1{,}8 \times 10^{19}$), embora o resultado ($155\,117\,520$)
-caiba em 32. A proposta do exercício é intercalar as operações: no passo
-$i$, multiplicar o valor acumulado pelo $i$-ésimo fator do numerador e
-dividir pelo $i$-ésimo fator do denominador (Tabela~\ref{tab:exemplo}).
-
-\begin{table}[H]
-\centering
-\caption{Cálculo de $\binom{10}{3}$ intercalando multiplicações e divisões.}
-\label{tab:exemplo}
-\begin{tabular}{ccccc}
-\hline
-Passo $i$ & Multiplica por & Antes da divisão & Divide por & Depois da divisão \\
-\hline
-1 & 10 & 10  & 1 & 10  \\
-2 & 9  & 90  & 2 & 45  \\
-3 & 8  & 360 & 3 & 120 \\
-\hline
-\end{tabular}
-\end{table}
-
-Como a divisão inteira em C descarta o resto sem aviso, esse método só
-funciona se toda divisão intermediária for exata, o que é provado a seguir.
-
-\subsection{Divisibilidade dos Resultados Parciais}
-
-Chamamos de $P(i,j)$ o produto de $i$ inteiros consecutivos começando em
-$j$:
 \[
-    P(i,j) = j \cdot (j+1) \cdots (j+i-1).
-    \qquad \text{Por exemplo, } P(3,5) = 5 \cdot 6 \cdot 7 = 210.
+    \binom{n}{k} = \frac{n!}{(n-k)!\,k!}
+                 = \frac{n \cdot (n-1) \cdots (n-k+1)}{1 \cdot 2 \cdots k}.
 \]
+Calcular o numerador inteiro e só dividir no final é inviável mesmo para
+valores modestos: em $\binom{30}{15}$, o numerador
+$30 \cdot 29 \cdots 16 \approx 2{,}0 \times 10^{20}$ não cabe em 64 bits,
+embora o resultado ($155\,117\,520$) caiba em 32. A proposta do exercício é
+intercalar as operações: no passo $i$, multiplicar o acumulado pelo
+$i$-ésimo fator do numerador e dividir pelo $i$-ésimo do denominador. Para
+$\binom{10}{3}$:
+\begin{equation}\label{eq:exemplo}
+    1 \xrightarrow{\times 10} 10 \xrightarrow{\div 1} 10
+      \xrightarrow{\times 9} 90 \xrightarrow{\div 2} 45
+      \xrightarrow{\times 8} 360 \xrightarrow{\div 3} 120.
+\end{equation}
+Como a divisão inteira em C descarta o resto sem aviso, é preciso garantir
+que toda divisão intermediária é exata. Seja
+$P(i,j) = j \cdot (j+1) \cdots (j+i-1)$ o produto de $i$ inteiros
+consecutivos a partir de $j$.
 
 \begin{lema}\label{lema:div}
     Para todos os inteiros $i \ge 1$ e $j \ge 1$, $i!$ divide $P(i,j)$.
 \end{lema}
 
-A demonstração usa uma identidade auxiliar. Para $i \ge 2$, os produtos
-$P(i,j)$ e $P(i,j+1)$ têm em comum os fatores $(j+1) \cdots (j+i-1)$, que
-formam $P(i-1,\,j+1)$. Assim,
-\[
-    P(i,j) = j \cdot P(i-1,\,j+1)
-    \qquad \text{e} \qquad
-    P(i,j+1) = P(i-1,\,j+1) \cdot (j+i),
-\]
-e, subtraindo uma da outra,
-\begin{equation}\label{eq:identidade}
-    P(i,j+1) - P(i,j) = \big[(j+i) - j\big] \cdot P(i-1,\,j+1)
-                      = i \cdot P(i-1,\,j+1).
-\end{equation}
-Por exemplo, $P(3,6) - P(3,5) = 6 \cdot 7 \cdot 8 - 5 \cdot 6 \cdot 7
-= (8-5) \cdot 6 \cdot 7 = 3 \cdot P(2,6)$.
-
 \begin{proof}
-Por indução em $i$.
-
-\emph{Base ($i = 1$):} $P(1,j) = j$, e $1! = 1$ divide qualquer inteiro.
-
-\emph{Passo:} seja $i \ge 2$ e suponha, como hipótese de indução, que
-$(i-1)!$ divide $P(i-1,m)$ para todo $m \ge 1$. Vamos mostrar, agora por
-indução em $j$, que $i!$ divide $P(i,j)$ para todo $j \ge 1$.
-\begin{itemize}
-    \item $j = 1$: $P(i,1) = 1 \cdot 2 \cdots i = i!$, que é divisível
-          por $i!$.
-    \item De $j$ para $j+1$: suponha que $i!$ divide $P(i,j)$. Pela
-          identidade~\eqref{eq:identidade},
-          \[ P(i,j+1) = P(i,j) + i \cdot P(i-1,\,j+1). \]
-          A primeira parcela é múltipla de $i!$ pela suposição. Na segunda,
-          a hipótese de indução (com $m = j+1$) dá
-          $P(i-1,\,j+1) = c \cdot (i-1)!$ para algum inteiro $c$, logo
-          $i \cdot P(i-1,\,j+1) = c \cdot i \cdot (i-1)! = c \cdot i!$.
-          A soma de dois múltiplos de $i!$ é múltipla de $i!$. \qedhere
-\end{itemize}
+Por indução em $i$. Para $i = 1$, $P(1,j) = j$ e $1! = 1$. Seja $i \ge 2$ e
+suponha que $(i-1)!$ divide $P(i-1,m)$ para todo $m \ge 1$. Colocando em
+evidência os fatores comuns $(j+1) \cdots (j+i-1) = P(i-1,\,j+1)$,
+\[
+    P(i,j+1) - P(i,j) = \big[(j+i) - j\big]\, P(i-1,\,j+1)
+                      = i \cdot P(i-1,\,j+1),
+\]
+que, pela hipótese, é múltiplo de $i \cdot (i-1)! = i!$. Como
+$P(i,1) = i!$ e cada passo de $j$ para $j+1$ soma um múltiplo de $i!$, por
+indução em $j$ todo $P(i,j)$ é múltiplo de $i!$.
 \end{proof}
 
-\paragraph{Aplicação ao problema.} Depois de $i$ multiplicações, o
-numerador acumulou $N_i = n \cdot (n-1) \cdots (n-i+1)$. Lido de trás para a
-frente, esse é um produto de $i$ inteiros consecutivos começando em
-$n-i+1$, ou seja, $N_i = P(i,\,n-i+1)$; por exemplo,
-$10 \cdot 9 \cdot 8 = 8 \cdot 9 \cdot 10 = P(3,8)$. Como $i \le k \le n$, o
-início $n-i+1$ é pelo menos 1, e o lema garante que $i!$ divide $N_i$.
-
-Isso explica a Tabela~\ref{tab:exemplo}. Antes da $i$-ésima divisão, o
-acumulado já foi dividido por $1, 2, \dots, i-1$, ou seja, por $(i-1)!$.
-Então
-\[
-    \underbrace{\frac{N_i}{(i-1)!}}_{\text{antes da divisão}} \div\; i
-    \;=\; \frac{N_i}{i!} \;=\; \binom{n}{i},
-\]
-que é inteiro pelo lema. No passo 3 da tabela, por exemplo,
-$720 / 2! = 360$ e $360 / 3 = 120 = 720 / 3!$. Por isso o denominador não
-precisa enviar $i!$: basta enviar o próximo fator $i$, e as divisões
-sucessivas por $1, 2, \dots, i$ têm o mesmo efeito que dividir por $i!$. Em
-$\binom{30}{15}$, o maior valor acumulado fica em torno de
-$2{,}3 \times 10^{9}$, contra $2{,}0 \times 10^{20}$ do numerador completo.
+Após $i$ multiplicações, o numerador acumulou
+$N_i = n(n-1)\cdots(n-i+1) = P(i,\,n-i+1)$, com $n-i+1 \ge 1$. Se o
+acumulado já foi dividido por $1, \dots, i-1$, ele vale $N_i/(i-1)!$, e
+dividi-lo por $i$ dá $N_i/i! = \binom{n}{i}$, que é inteiro pelo lema. Assim,
+o denominador só precisa enviar o fator $i$, e o maior valor intermediário é
+$i\binom{n}{i}$ (em $\binom{30}{15}$, cerca de $2{,}3 \times 10^{9}$).
 
 
-\subsection{Processos, Dados Compartilhados e Condições de Corrida}
+\subsection{Threads, Dados Compartilhados e Condições de Corrida}
 
-O programa tem três \emph{threads}:
-\begin{itemize}
-    \item \textbf{Denominador}: gera, em ordem, os fatores $1, 2, \dots, k$
-          e os escreve num \emph{buffer} compartilhado;
-    \item \textbf{Numerador}: para $i = 1, \dots, k$, multiplica o seu
-          acumulado por $n-i+1$, lê o próximo fator do \emph{buffer} e
-          divide o acumulado por ele;
-    \item \textbf{Principal}: cria as outras duas, espera que terminem
-          (\texttt{pthread\_join}) e imprime o resultado.
-\end{itemize}
-
-O acumulado pertence só ao Numerador (a Principal só o lê depois do
-\texttt{pthread\_join}), então não há disputa por ele. O que é compartilhado
-é o \emph{buffer}: as posições de memória onde o Denominador escreve os
-fatores e de onde o Numerador os lê, junto com as variáveis que indicam
-quantos fatores estão disponíveis. Sem sincronização, ele está sujeito a
-três condições de corrida:
-\begin{enumerate}
-    \item \textbf{Leitura antes da escrita:} o Numerador lê uma posição em
-          que o Denominador ainda não escreveu e obtém um valor antigo ou o
-          valor inicial (se for 0, divide por zero).
-    \item \textbf{Sobrescrita:} o Denominador escreve um fator por cima de
-          outro que o Numerador ainda não leu, e esse divisor se perde.
-    \item \textbf{Atualização perdida:} se as duas \emph{threads} alteram a
-          mesma variável de controle (por exemplo, \texttt{qtd++} no
-          Denominador e \texttt{qtd-{}-} no Numerador), cada operação é feita
-          em três passos (ler, alterar, escrever), e uma alteração pode
-          apagar a outra.
-\end{enumerate}
-
-A Tabela~\ref{tab:corrida} mostra uma execução de $\binom{5}{2} = 10$ sem
-sincronização, com um \emph{buffer} de uma posição, em que as corridas 1 e 2
-acontecem e o programa imprime 4 sem nenhum erro aparente.
+Além da \emph{thread} Principal, que cria as outras e imprime o resultado
+após o \texttt{pthread\_join}, há duas: o \textbf{Denominador}, que escreve
+os fatores $1, 2, \dots, k$, em ordem, num \emph{buffer} compartilhado de $N$
+posições, e o \textbf{Numerador}, que no passo $i$ multiplica o seu acumulado
+(local) por $n-i+1$, lê o próximo fator do \emph{buffer} e divide por ele. O
+dado compartilhado é o \emph{buffer}, junto com as variáveis que indicam
+quantos fatores estão disponíveis. Sem sincronização, há três condições de
+corrida: (1)~\textbf{leitura antes da escrita}, em que o Numerador lê uma
+posição ainda não escrita e obtém um valor antigo (ou 0, dividindo por
+zero); (2)~\textbf{sobrescrita}, em que o Denominador escreve sobre um fator
+ainda não lido, que se perde; e (3)~\textbf{atualização perdida}, em que as
+duas alteram um mesmo contador (\texttt{qtd++} e \texttt{qtd-{}-}), operação
+que não é atômica, e uma alteração apaga a outra. A
+Tabela~\ref{tab:corrida} mostra uma execução de $\binom{5}{2} = 10$ com
+$N = 1$ em que (1) e (2) levam ao resultado 4, sem nenhum erro aparente.
 
 \begin{table}[H]
 \centering
@@ -273,181 +186,123 @@ Passo & Denominador & \emph{buffer} & Numerador & Acumulado & Problema \\
 \end{tabular}
 \end{table}
 
-Uma solução correta deve garantir:
-\begin{itemize}
-    \item \textbf{entrega exata:} cada fator é lido pelo Numerador
-          exatamente uma vez, na ordem em que foi escrito;
-    \item \textbf{exclusão mútua} no acesso às variáveis do \emph{buffer};
-    \item \textbf{término sem \emph{deadlock}:} as duas \emph{threads}
-          terminam após $k$ iterações.
-\end{itemize}
-Com as duas primeiras, o Numerador repete exatamente a
-Tabela~\ref{tab:exemplo}
-e, pelo Lema~\ref{lema:div}, obtém $\binom{n}{k}$. Também é desejável que as
-esperas sejam por bloqueio, e não por espera ocupada.
+Uma solução correta deve garantir que cada fator seja lido exatamente uma
+vez e na ordem em que foi escrito, exclusão mútua no acesso ao
+\emph{buffer} e término sem \emph{deadlock} nem \emph{starvation},
+preferencialmente sem espera ocupada.
 
 
 %======================================================================
 \section{Descrição do Algoritmo Desenvolvido para Solução do Problema Proposto}
-\label{sec:algoritmo}
 %======================================================================
 
-\subsection{Visão Geral}
-% A ideia da solução em texto. Uma figura da interação entre as threads ajuda.
+\subsection{Mecanismo de Sincronização}
 
-
-\subsection{Mecanismos de Sincronização Utilizados}
-
-A solução usa apenas dois semáforos POSIX (\texttt{sem\_t}) e um
-\emph{buffer} circular de $N$ posições:
-\begin{itemize}
-    \item \texttt{posicoes\_livres}, iniciado com $N$, conta as posições do
-          \emph{buffer} que podem ser escritas. O Denominador faz
-          \texttt{sem\_wait} nele antes de escrever, e o Numerador faz
-          \texttt{sem\_post} depois de ler.
-    \item \texttt{fatores\_prontos}, iniciado com 0, conta os fatores
-          escritos e ainda não lidos. O Numerador faz \texttt{sem\_wait} nele
-          antes de ler, e o Denominador faz \texttt{sem\_post} depois de
-          escrever.
-\end{itemize}
-
-O semáforo foi escolhido porque o problema é, no fundo, contar recursos: um
-semáforo é um contador cujas operações são atômicas e que bloqueia a
-\emph{thread} quando chega a zero, sem espera ocupada. Assim, o
-\texttt{sem\_wait} em \texttt{fatores\_prontos} impede a corrida 1, o
-\texttt{sem\_wait} em \texttt{posicoes\_livres} impede a corrida 2, e a
-corrida 3 deixa de existir, porque o contador de fatores disponíveis passa a
-ser o próprio semáforo. O \texttt{sem\_wait} e o \texttt{sem\_post} de cada
-semáforo ficam em \emph{threads} diferentes: aqui os semáforos sinalizam
-eventos de uma \emph{thread} para a outra, e não fazem exclusão mútua.
-
-\paragraph{Por que não há \emph{mutex}.} Com um único escritor e um único
-leitor, nenhuma variável é alterada pelas duas \emph{threads} ao mesmo
-tempo. O índice de escrita do \emph{buffer} só é usado pelo Denominador, e o
-de leitura, só pelo Numerador; $n$, $k$ e $N$ são constantes; e o
-resultado só é lido pela
-Principal após o \texttt{pthread\_join}. Resta o vetor do \emph{buffer}, e
-os dois semáforos garantem que o Numerador só lê uma posição depois que o
-Denominador a escreveu, e que o Denominador só a reescreve depois que o
-Numerador a leu. Um \emph{mutex} só seria necessário com mais de um escritor
-ou mais de um leitor, que passariam a disputar o mesmo índice.
+A solução usa dois semáforos POSIX e um \emph{buffer} circular de $N$
+posições: \texttt{posicoes\_livres}, que começa em $N$ e conta as posições
+que podem ser escritas, e \texttt{fatores\_prontos}, que começa em 0 e conta
+os fatores escritos e ainda não lidos. Um semáforo é um contador de
+operações atômicas que bloqueia a \emph{thread} quando chega a zero, sem
+espera ocupada, e isso corresponde exatamente às duas esperas do problema: o
+Denominador espera uma posição livre (evitando a corrida 2) e o Numerador
+espera um fator pronto (evitando a corrida 1); a corrida 3 desaparece porque
+o contador passa a ser o próprio semáforo. Cada semáforo recebe
+\texttt{sem\_wait} de uma \emph{thread} e \texttt{sem\_post} da outra, ou
+seja, é usado para sinalização. Não é preciso \emph{mutex}: cada índice do
+\emph{buffer} é usado por uma única \emph{thread}, $n$, $k$ e $N$ são
+constantes, e o resultado só é lido depois do \texttt{pthread\_join}.
 
 
 \subsection{Pseudocódigo}
-% Pseudocódigo de cada thread.
-% \begin{lstlisting}[language={}, numbers=none]
-% ...
-% \end{lstlisting}
+
+\noindent
+\begin{minipage}[t]{0.48\textwidth}
+\begin{lstlisting}[language={}, numbers=none, basicstyle=\ttfamily\scriptsize]
+Denominador:
+  escrita = 0
+  para i de 1 até k:
+    sem_wait(posicoes_livres)
+    buffer[escrita] = i
+    escrita = (escrita + 1) mod N
+    sem_post(fatores_prontos)
+
+Principal:
+  sem_init(posicoes_livres, N)
+  sem_init(fatores_prontos, 0)
+  cria Denominador e Numerador
+  espera as duas (pthread_join)
+  imprime resultado
+\end{lstlisting}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{lstlisting}[language={}, numbers=none, basicstyle=\ttfamily\scriptsize]
+Numerador:
+  leitura = 0
+  acumulado = 1
+  para i de 1 até k:
+    acumulado = acumulado * (n - i + 1)
+    sem_wait(fatores_prontos)
+    fator = buffer[leitura]
+    leitura = (leitura + 1) mod N
+    sem_post(posicoes_livres)
+    acumulado = acumulado / fator
+  resultado = acumulado
+\end{lstlisting}
+\end{minipage}
+
+\medskip
+No código, cada \texttt{sem\_wait} é precedido de um \texttt{sem\_trywait}
+que só serve para imprimir um aviso quando a \emph{thread} vai bloquear (o
+efeito é o mesmo), e há \texttt{printf}s e \texttt{sleep}s que mostram a
+execução e simulam o tempo de cada operação.
 
 
 \subsection{Corretude}
 
-No código, cada \texttt{sem\_wait} é precedido de um \texttt{sem\_trywait},
-que só serve para imprimir um aviso quando a \emph{thread} vai bloquear; o
-par tem o mesmo efeito de um único \texttt{sem\_wait}, e é assim que ele é
-tratado a seguir.
-
 Sejam $L$ e $P$ os valores de \texttt{posicoes\_livres} e
-\texttt{fatores\_prontos}. Seja $a_d = 1$ enquanto o Denominador já passou
-do seu \texttt{sem\_wait} mas ainda não fez o \texttt{sem\_post}
-correspondente, e $a_d = 0$ caso contrário; $a_n$ é definido da mesma forma
-para o Numerador. No início, $L = N$ e $P = a_d = a_n = 0$. O
-\texttt{sem\_wait} do Denominador transfere uma unidade de $L$ para $a_d$, e
-o seu \texttt{sem\_post} transfere $a_d$ para $P$; o Numerador faz o mesmo no
-sentido contrário, de $P$ para $a_n$ e de $a_n$ para $L$. Nenhuma operação
-cria ou destrói unidades, então em todo instante vale o invariante
-\begin{equation}\label{eq:invariante}
-    L + P + a_d + a_n = N.
-\end{equation}
+\texttt{fatores\_prontos}, e $a_d, a_n \in \{0,1\}$ iguais a 1 enquanto,
+respectivamente, o Denominador ou o Numerador já passou do
+\texttt{sem\_wait} mas não do \texttt{sem\_post} seguinte. Cada operação
+apenas transfere uma unidade ($L \to a_d \to P \to a_n \to L$), então vale
+sempre o invariante $L + P + a_d + a_n = N$.
 
-\paragraph{Ausência de condições de corrida.} O $j$-ésimo fator é escrito
-pelo Denominador na posição $(j-1) \bmod N$, e o Numerador lê as posições
-na mesma ordem circular.
-\begin{itemize}
-    \item O Numerador só lê o $i$-ésimo fator depois do seu $i$-ésimo
-          \texttt{sem\_wait} em \texttt{fatores\_prontos}, que só tem sucesso
-          depois de $i$ \texttt{sem\_post}s do Denominador, ou seja, depois
-          que o $i$-ésimo fator foi escrito. Não há leitura antes da escrita
-          (corrida 1).
-    \item O Denominador só escreve o $j$-ésimo fator depois do seu
-          $j$-ésimo \texttt{sem\_wait} em \texttt{posicoes\_livres}. Como o
-          semáforo começa em $N$, para $j > N$ isso exige pelo menos $j - N$
-          \texttt{sem\_post}s do Numerador, ou seja, que o fator $j - N$, que
-          ocupava a mesma posição, já tenha sido lido. Não há sobrescrita
-          (corrida 2).
-    \item O único contador compartilhado é o valor dos próprios semáforos,
-          e as operações sobre ele são atômicas (corrida 3).
-\end{itemize}
-Além disso, no padrão POSIX, \texttt{sem\_post} e \texttt{sem\_wait}
-sincronizam a memória: o valor escrito antes do \texttt{sem\_post} é o que o
-Numerador enxerga depois do \texttt{sem\_wait}. Logo, cada fator é lido
-exatamente uma vez e na ordem em que foi escrito (entrega exata).
+\emph{Sem condições de corrida.} O Numerador só lê o $i$-ésimo fator depois
+de $i$ \texttt{sem\_post}s em \texttt{fatores\_prontos}, ou seja, depois de
+ele ser escrito. O Denominador só escreve o $j$-ésimo fator, na posição
+$(j-1) \bmod N$, depois de pelo menos $j - N$ \texttt{sem\_post}s em
+\texttt{posicoes\_livres}, ou seja, depois que o fator $j - N$, da mesma
+posição, foi lido. Como \texttt{sem\_post} e \texttt{sem\_wait} também
+sincronizam a memória no POSIX, cada fator é lido uma vez e em ordem, o
+Numerador refaz a sequência~\eqref{eq:exemplo} e, pelo lema, obtém
+$\binom{n}{k}$.
 
-\paragraph{Resultado correto.} Com a entrega exata, o Numerador executa
-exatamente a sequência da Tabela~\ref{tab:exemplo}: no passo $i$, multiplica
-por $n-i+1$ e divide por $i$. Pela Seção~2.2, cada divisão é exata e o
-acumulado depois do passo $i$ é $\binom{n}{i}$; ao final, $\binom{n}{k}$.
+\emph{Sem deadlock.} As duas \emph{threads} só bloqueariam juntas com
+$L = a_d = 0$ (\emph{buffer} cheio) e $P = a_n = 0$ (\emph{buffer} vazio), o
+que daria $0 = N \ge 1$: o \emph{buffer} não pode estar cheio e vazio ao
+mesmo tempo.
 
-\paragraph{Ausência de \emph{deadlock}.} Uma \emph{thread} só bloqueia em um
-\texttt{sem\_wait}. Para haver \emph{deadlock}, as duas teriam de estar
-bloqueadas ao mesmo tempo: o Denominador em \texttt{posicoes\_livres}, com
-$L = 0$ e $a_d = 0$ (\emph{buffer} cheio), e o Numerador em
-\texttt{fatores\_prontos}, com $P = 0$ e $a_n = 0$ (\emph{buffer} vazio).
-Nesse caso $L + P + a_d + a_n = 0 \neq N$, o que contradiz o
-invariante~\eqref{eq:invariante}, já que $N \ge 1$. Intuitivamente, o
-\emph{buffer} não pode estar cheio e vazio ao mesmo tempo.
-
-\paragraph{Término e ausência de \emph{starvation}.} Uma \emph{thread}
-também não fica bloqueada para sempre porque a outra terminou. Se o
-Numerador terminou, ele fez $k$ \texttt{sem\_post}s em
-\texttt{posicoes\_livres}; se o Denominador espera a sua $j$-ésima posição
-($j \le k$), ele fez antes $j-1$ \texttt{sem\_wait}s, então
-$L = N - (j-1) + k \ge N + 1 > 0$, e ele não estaria bloqueado.
-Simetricamente, se o Denominador terminou e o Numerador espera o seu
-$i$-ésimo fator, $P = k - (i-1) \ge 1$. Assim, se o Denominador está
-bloqueado ($L = 0$, $a_d = 0$), o invariante dá $P + a_n = N \ge 1$, e o
-Numerador, que não está bloqueado nem terminou, ou já tem um fator na mão
-($a_n = 1$) ou encontrará um pronto ($P \ge 1$); em ambos os casos, ele fará
-o \texttt{sem\_post} em \texttt{posicoes\_livres} em um número finito de
-passos. O caso do Numerador bloqueado é simétrico. Como só o Denominador
-espera em \texttt{posicoes\_livres} e só o Numerador espera em
-\texttt{fatores\_prontos}, esse \texttt{sem\_post} acorda exatamente a
-\emph{thread} bloqueada: não há várias \emph{threads} disputando o mesmo
-semáforo e, portanto, não há \emph{starvation}. Como cada laço tem
-exatamente $k$ iterações, as duas \emph{threads} terminam e os
-\texttt{pthread\_join} da Principal retornam. Supõe-se, como de costume, um
-escalonador justo, em que toda \emph{thread} pronta acaba sendo executada.
+\emph{Sem starvation e com término.} Se o Denominador está bloqueado, o
+invariante dá $P + a_n = N \ge 1$: o Numerador tem um fator na mão ou um
+pronto para ler e, em um número finito de passos, faz o \texttt{sem\_post}
+que o libera; o caso do Numerador bloqueado é simétrico. Ninguém espera uma
+\emph{thread} que já terminou: se o Numerador terminou, o Denominador, na sua
+$j$-ésima espera, encontra $L = N - (j-1) + k > 0$, e o caso simétrico dá
+$P \ge 1$. Como cada semáforo tem um único possível esperador, o
+\texttt{sem\_post} acorda justamente a \emph{thread} bloqueada, e, com laços
+de $k$ iterações, as duas terminam (supondo um escalonador justo).
 
 
-\subsection{Implementação}
+\subsection{Implementação e Testes}
 
-A solução está no arquivo \texttt{coef\_binomial.c}. Para compilar e
-executar:
-\begin{lstlisting}[language={}, numbers=none]
-gcc -Wall -o coef_binomial coef_binomial.c -lpthread
-./coef_binomial
-\end{lstlisting}
-
-Os valores de $n$, $k$ e do tamanho $N$ do \emph{buffer} são constantes
-definidas no início do código, com padrão $n = 10$, $k = 5$ e $N = 2$ (a
-execução termina com \texttt{Resultado: C(10, 5) = 252}). O \emph{buffer} é
-menor que $k$ de propósito, para que o Denominador encha o \emph{buffer} e a
-espera apareça na saída. Para calcular outro coeficiente, basta alterar
-essas constantes e compilar de novo.
-
-% - Trechos importantes do código:
-% \lstinputlisting[caption={Descrição do trecho}]{NOME.c}
-
-
-\subsection{Testes e Resultados}
-
-A Tabela~\ref{tab:testes} lista casos de teste, com o resultado esperado e o
-que cada um mostra. Para reproduzir um caso, basta trocar os valores de
-\texttt{VALOR\_N}, \texttt{VALOR\_K} e \texttt{TAM\_BUFFER} no início do
-código e compilar de novo. Todos os casos da tabela foram executados e
-imprimiram o resultado esperado. Por causa das pausas (\texttt{sleep}) que
-simulam o tempo de cada operação, a execução leva cerca de 4 segundos por
-passo do Numerador, ou seja, cerca de $4k$ segundos.
+O código está em \texttt{coef\_binomial.c} e é compilado com
+\texttt{gcc -Wall -o coef\_binomial coef\_binomial.c -lpthread}. Os valores
+de $n$, $k$ e $N$ são constantes no início do código (padrão $n = 10$,
+$k = 5$ e $N = 2$, com $N < k$ para que a espera do Denominador apareça);
+para outro caso, basta alterá-las e compilar de novo. O acumulado é
+\texttt{unsigned long long}, e o programa avisa se um valor intermediário
+passar de 64 bits. A Tabela~\ref{tab:testes} traz casos que podem ser
+testados; todos foram executados e deram o resultado esperado. Por causa dos
+\texttt{sleep}, cada execução leva cerca de $4k$ segundos.
 
 \begin{table}[H]
 \centering
@@ -459,9 +314,8 @@ passo do Numerador, ou seja, cerca de $4k$ segundos.
 $n$ & $k$ & $N$ & $\binom{n}{k}$ esperado & O que o caso mostra \\
 \hline
 10  & 5  & 2 & 252           & padrão: o \emph{buffer} enche e o Denominador espera \\
-10  & 3  & 5 & 120           & exemplo do enunciado (Tabela~\ref{tab:exemplo}) \\
-5   & 2  & 1 & 10            & caso da Tabela~\ref{tab:corrida}, agora correto; \\
-    &    &   &               & com $N = 1$, as \emph{threads} se alternam \\
+10  & 3  & 5 & 120           & exemplo do enunciado, Equação~\eqref{eq:exemplo} \\
+5   & 2  & 1 & 10            & caso da Tabela~\ref{tab:corrida}, agora correto \\
 7   & 0  & 2 & 1             & $k = 0$: nenhuma \emph{thread} entra no laço \\
 7   & 7  & 2 & 1             & $k = n$ \\
 30  & 15 & 5 & 155\,117\,520 & o numerador completo estouraria 64 bits \\
@@ -470,17 +324,13 @@ $n$ & $k$ & $N$ & $\binom{n}{k}$ esperado & O que o caso mostra \\
 \end{tabular}
 \end{table}
 
-A Figura~\ref{fig:saida} mostra a saída da execução padrão. O Denominador,
-mais rápido, escreve os fatores 2 e 3, encontra o \emph{buffer} cheio e
-espera; só volta a escrever depois que o Numerador lê um fator e libera uma
-posição. Os índices de escrita e leitura alternam entre as posições 0 e 1
-do \emph{buffer} circular. Depois de cada divisão, o acumulado vale 10, 45,
-120, 210 e 252, ou seja, $\binom{10}{i}$ para $i = 1, \dots, 5$, como
-previsto na Seção~2.2.
+A Figura~\ref{fig:saida} mostra a execução padrão: o Denominador enche o
+\emph{buffer} e espera até o Numerador liberar uma posição, e o acumulado
+após cada divisão é $\binom{10}{i}$: 10, 45, 120, 210 e 252.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.7\textwidth]{figuras/saida_padrao.png}
+\includegraphics[width=0.42\textwidth]{figuras/saida_padrao.png}
 \caption{Saída da execução padrão ($n = 10$, $k = 5$, $N = 2$).}
 \label{fig:saida}
 \end{figure}
@@ -488,11 +338,19 @@ previsto na Seção~2.2.
 
 %======================================================================
 \section{Conclusão}
-\label{sec:conclusao}
 %======================================================================
-% - O que foi feito.
-% - Dificuldades e o que aprendeu.
-% - Limitações e possíveis extensões.
+
+O trabalho modelou o cálculo de $\binom{n}{k}$ proposto por Ben-Ari como uma
+comunicação produtor/consumidor entre as \emph{threads} Denominador e
+Numerador, identificou três condições de corrida no \emph{buffer}
+compartilhado e as eliminou com apenas dois semáforos, com argumentos de
+corretude, ausência de \emph{deadlock} e de \emph{starvation}. O lema de
+divisibilidade garante que as divisões intermediárias são exatas e mantêm os
+valores pequenos. A principal limitação é o tamanho do inteiro: com 64 bits,
+casos como $\binom{67}{33}$, cujo resultado cabe mas um valor intermediário
+não, são recusados. Extensões naturais seriam usar inteiros de precisão
+arbitrária ou várias \emph{threads} de cada tipo, o que exigiria também um
+\emph{mutex} nos índices do \emph{buffer}.
 
 
 %======================================================================
