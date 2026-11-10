@@ -13,6 +13,15 @@
 \usepackage{float}
 \usepackage{url}
 \usepackage{listings}
+% Cor do texto nas tabelas: verde = passo sem problema, vermelho = erro.
+\newcommand{\ok}[1]{\textcolor{green!45!black}{#1}}
+\newcommand{\erro}[1]{\textcolor{red!70!black}{#1}}
+% Margens no padrão ABNT (3 cm em cima/esquerda, 2 cm embaixo/direita).
+% As margens padrão do article são bem maiores e não caberia tudo em 4 páginas.
+\usepackage[top=3cm, left=3cm, bottom=2cm, right=2cm]{geometry}
+% Listas (itemize/enumerate) mais compactas, pra economizar espaço.
+\usepackage{enumitem}
+\setlist{itemsep=1pt, topsep=3pt}
 
 % Ambiente "Lema" (o \begin{proof} ... \end{proof} já vem do amsthm)
 \newtheorem{lema}{Lema}
@@ -135,78 +144,141 @@ funciona se toda divisão intermediária for exata, o que é provado a seguir.
 
 \subsection{Divisibilidade dos Resultados Parciais}
 
-Seja $P(i,j) = j \cdot (j+1) \cdots (j+i-1)$ o produto de $i$ inteiros
-consecutivos começando em $j$.
+Chamamos de $P(i,j)$ o produto de $i$ inteiros consecutivos começando em
+$j$:
+\[
+    P(i,j) = j \cdot (j+1) \cdots (j+i-1).
+    \qquad \text{Por exemplo, } P(3,5) = 5 \cdot 6 \cdot 7 = 210.
+\]
 
 \begin{lema}\label{lema:div}
     Para todos os inteiros $i \ge 1$ e $j \ge 1$, $i!$ divide $P(i,j)$.
 \end{lema}
 
+A demonstração usa uma identidade auxiliar. Para $i \ge 2$, os produtos
+$P(i,j)$ e $P(i,j+1)$ têm em comum os fatores $(j+1) \cdots (j+i-1)$, que
+formam $P(i-1,\,j+1)$. Assim,
+\[
+    P(i,j) = j \cdot P(i-1,\,j+1)
+    \qquad \text{e} \qquad
+    P(i,j+1) = P(i-1,\,j+1) \cdot (j+i),
+\]
+e, subtraindo uma da outra,
+\begin{equation}\label{eq:identidade}
+    P(i,j+1) - P(i,j) = \big[(j+i) - j\big] \cdot P(i-1,\,j+1)
+                      = i \cdot P(i-1,\,j+1).
+\end{equation}
+Por exemplo, $P(3,6) - P(3,5) = 6 \cdot 7 \cdot 8 - 5 \cdot 6 \cdot 7
+= (8-5) \cdot 6 \cdot 7 = 3 \cdot P(2,6)$.
+
 \begin{proof}
-    % TODO(Evelyn): passar a prova do papel pra cá.
-    % Estrutura: indução em i (de fora); dentro do passo, indução em j.
-    %  1. Base de fora (i = 1).
-    %  2. Identidade P(i, j+1) - P(i, j) = i . P(i-1, j+1):
-    %     mostrar a conta (fator comum em evidência), não só afirmar.
-    %  3. Passo de fora (i >= 2), supondo que (i-1)! divide P(i-1, m)
-    %     para TODO m >= 1:
-    %     3a. base de dentro (j = 1);
-    %     3b. passo de dentro (j -> j+1), usando a identidade.
+Por indução em $i$.
+
+\emph{Base ($i = 1$):} $P(1,j) = j$, e $1! = 1$ divide qualquer inteiro.
+
+\emph{Passo:} seja $i \ge 2$ e suponha, como hipótese de indução, que
+$(i-1)!$ divide $P(i-1,m)$ para todo $m \ge 1$. Vamos mostrar, agora por
+indução em $j$, que $i!$ divide $P(i,j)$ para todo $j \ge 1$.
+\begin{itemize}
+    \item $j = 1$: $P(i,1) = 1 \cdot 2 \cdots i = i!$, que é divisível
+          por $i!$.
+    \item De $j$ para $j+1$: suponha que $i!$ divide $P(i,j)$. Pela
+          identidade~\eqref{eq:identidade},
+          \[ P(i,j+1) = P(i,j) + i \cdot P(i-1,\,j+1). \]
+          A primeira parcela é múltipla de $i!$ pela suposição. Na segunda,
+          a hipótese de indução (com $m = j+1$) dá
+          $P(i-1,\,j+1) = c \cdot (i-1)!$ para algum inteiro $c$, logo
+          $i \cdot P(i-1,\,j+1) = c \cdot i \cdot (i-1)! = c \cdot i!$.
+          A soma de dois múltiplos de $i!$ é múltipla de $i!$. \qedhere
+\end{itemize}
 \end{proof}
 
-Após $i$ multiplicações, o numerador acumulou
-$N_i = n(n-1)\cdots(n-i+1) = P(i,\, n-i+1)$, com $n-i+1 \ge 1$ porque
-$i \le k \le n$; pelo lema, $i!$ divide $N_i$ (como no enunciado:
-$1 \cdot 2$ divide $10 \cdot 9$ e $1 \cdot 2 \cdot 3$ divide
-$10 \cdot 9 \cdot 8$). Se o valor acumulado já foi dividido por
-$1, 2, \dots, i-1$, antes da $i$-ésima divisão ele vale
-$r_i = N_i/(i-1)!$, e $r_i/i = N_i/i! = \binom{n}{i}$ é inteiro. Logo, o
-denominador só precisa entregar o próximo fator $i$ (dividir por
-$1, \dots, i$ em sequência equivale a dividir por $i!$), e o maior valor
-intermediário, $r_i = i\binom{n}{i}$, fica muito abaixo de $N_k$: em
-$\binom{30}{15}$, cerca de $2{,}3 \times 10^{9}$ contra
-$2{,}0 \times 10^{20}$.
+\paragraph{Aplicação ao problema.} Depois de $i$ multiplicações, o
+numerador acumulou $N_i = n \cdot (n-1) \cdots (n-i+1)$. Lido de trás para a
+frente, esse é um produto de $i$ inteiros consecutivos começando em
+$n-i+1$, ou seja, $N_i = P(i,\,n-i+1)$; por exemplo,
+$10 \cdot 9 \cdot 8 = 8 \cdot 9 \cdot 10 = P(3,8)$. Como $i \le k \le n$, o
+início $n-i+1$ é pelo menos 1, e o lema garante que $i!$ divide $N_i$.
+
+Isso explica a Tabela~\ref{tab:exemplo}. Antes da $i$-ésima divisão, o
+acumulado já foi dividido por $1, 2, \dots, i-1$, ou seja, por $(i-1)!$.
+Então
+\[
+    \underbrace{\frac{N_i}{(i-1)!}}_{\text{antes da divisão}} \div\; i
+    \;=\; \frac{N_i}{i!} \;=\; \binom{n}{i},
+\]
+que é inteiro pelo lema. No passo 3 da tabela, por exemplo,
+$720 / 2! = 360$ e $360 / 3 = 120 = 720 / 3!$. Por isso o denominador não
+precisa enviar $i!$: basta enviar o próximo fator $i$, e as divisões
+sucessivas por $1, 2, \dots, i$ têm o mesmo efeito que dividir por $i!$. Em
+$\binom{30}{15}$, o maior valor acumulado fica em torno de
+$2{,}3 \times 10^{9}$, contra $2{,}0 \times 10^{20}$ do numerador completo.
 
 
 \subsection{Processos, Dados Compartilhados e Condições de Corrida}
 
-Além da \emph{thread} principal, que lê $n$ e $k$, cria as outras duas,
-espera seu término e imprime o resultado, há duas \emph{threads} numa
-relação produtor/consumidor:
+O programa tem três \emph{threads}:
 \begin{itemize}
-    \item \textbf{Denominador} ($T_d$, produtor): entrega, em ordem, os
-          fatores $1, 2, \dots, k$;
-    \item \textbf{Numerador} ($T_n$, consumidor): para $i = 1, \dots, k$,
-          multiplica o acumulado por $n-i+1$, obtém o $i$-ésimo fator de
-          $T_d$ e divide por ele.
+    \item \textbf{Denominador} ($T_d$): gera, em ordem, os fatores
+          $1, 2, \dots, k$ e os escreve num \emph{buffer} compartilhado;
+    \item \textbf{Numerador} ($T_n$): para $i = 1, \dots, k$, multiplica o
+          seu acumulado por $n-i+1$, lê o próximo fator do \emph{buffer} e
+          divide o acumulado por ele;
+    \item \textbf{Principal}: lê $n$ e $k$, cria $T_d$ e $T_n$, espera as
+          duas terminarem (\texttt{pthread\_join}) e imprime o resultado.
 \end{itemize}
-O acumulado é local a $T_n$ (a principal só o lê após o
-\texttt{pthread\_join}). O dado compartilhado é o \emph{canal} entre $T_d$ e
-$T_n$: as posições onde os fatores são depositados e as variáveis que
-controlam quantos estão disponíveis. Sem sincronização, há três condições
-de corrida: (1)~\textbf{leitura antes da escrita}, em que $T_n$ lê um valor
-antigo ou o inicial (se for 0, divide por zero); (2)~\textbf{sobrescrita},
-em que $T_d$ deposita um fator antes de o anterior ser consumido e um
-divisor se perde; e (3)~\textbf{atualização perdida}, porque incrementos e
-decrementos concorrentes de uma variável de controle (\texttt{qtd++},
-\texttt{qtd-{}-}) não são atômicos e um deles pode se perder. A intercalação
-abaixo, para $\binom{5}{2} = 10$, combina (1) e (2) e termina com 4, sem
-nenhum erro aparente:
 
-\begin{lstlisting}[language={}, numbers=none]
-T_n: acc = 1 * 5 = 5
-T_d: escreve 1; escreve 2       (o 1 se perde)
-T_n: lê 2 -> acc = 5 / 2 = 2    (divisão truncada)
-T_n: acc = 2 * 4 = 8; lê 2 de novo -> acc = 8 / 2 = 4
-\end{lstlisting}
+O acumulado pertence só a $T_n$ (a principal só o lê depois do
+\texttt{pthread\_join}), então não há disputa por ele. O que é compartilhado
+é o \emph{buffer}: as posições de memória onde $T_d$ escreve os fatores e de
+onde $T_n$ os lê, junto com as variáveis que indicam quantos fatores estão
+disponíveis. Sem sincronização, ele está sujeito a três condições de
+corrida:
+\begin{enumerate}
+    \item \textbf{Leitura antes da escrita:} $T_n$ lê uma posição em que
+          $T_d$ ainda não escreveu e obtém um valor antigo ou o valor
+          inicial (se for 0, divide por zero).
+    \item \textbf{Sobrescrita:} $T_d$ escreve um fator por cima de outro que
+          $T_n$ ainda não leu, e esse divisor se perde.
+    \item \textbf{Atualização perdida:} se as duas \emph{threads} alteram a
+          mesma variável de controle (por exemplo, \texttt{qtd++} em $T_d$ e
+          \texttt{qtd-{}-} em $T_n$), cada operação é feita em três passos
+          (ler, alterar, escrever), e uma alteração pode apagar a outra.
+\end{enumerate}
 
-Uma solução correta deve garantir: \textbf{entrega exata} (cada fator é
-consumido exatamente uma vez, na ordem em que foi produzido);
-\textbf{exclusão mútua} no acesso às variáveis do canal; e \textbf{término
-sem \emph{deadlock}} (as duas \emph{threads} terminam após $k$ iterações).
-Com as duas primeiras, $T_n$ executa a mesma sequência da
-Tabela~\ref{tab:exemplo} e, pelo lema, obtém $\binom{n}{k}$. É desejável,
-ainda, que as esperas sejam por bloqueio, e não por espera ocupada.
+A Tabela~\ref{tab:corrida} mostra uma execução de $\binom{5}{2} = 10$ sem
+sincronização, com um \emph{buffer} de uma posição, em que as corridas 1 e 2
+acontecem e o programa imprime 4 sem nenhum erro aparente.
+
+\begin{table}[H]
+\centering
+\caption{Execução sem sincronização de $\binom{5}{2}$, passo a passo.}
+\label{tab:corrida}
+\begin{tabular}{clclcl}
+\hline
+Passo & $T_d$ & \emph{buffer} & $T_n$ & Acumulado & Problema \\
+\hline
+\ok{1}   & \ok{--}          & \ok{--}  & \ok{multiplica por 5}        & \ok{5}   & \\
+\ok{2}   & \ok{escreve 1}   & \ok{1}   & \ok{--}                      & \ok{5}   & \\
+\erro{3} & \erro{escreve 2} & \erro{2} & \erro{--}                    & \erro{5} & \erro{o 1 se perdeu (corrida 2)} \\
+\erro{4} & \erro{--}        & \erro{2} & \erro{lê 2 e divide: $5/2$}  & \erro{2} & \erro{divisão truncada} \\
+\ok{5}   & \ok{--}          & \ok{2}   & \ok{multiplica por 4}        & \ok{8}   & \\
+\erro{6} & \erro{--}        & \erro{2} & \erro{lê 2 de novo: $8/2$}   & \erro{\textbf{4}} & \erro{valor antigo (corrida 1)} \\
+\hline
+\end{tabular}
+\end{table}
+
+Uma solução correta deve garantir:
+\begin{itemize}
+    \item \textbf{entrega exata:} cada fator é lido por $T_n$ exatamente uma
+          vez, na ordem em que foi escrito;
+    \item \textbf{exclusão mútua} no acesso às variáveis do \emph{buffer};
+    \item \textbf{término sem \emph{deadlock}:} as duas \emph{threads}
+          terminam após $k$ iterações.
+\end{itemize}
+Com as duas primeiras, $T_n$ repete exatamente a Tabela~\ref{tab:exemplo}
+e, pelo Lema~\ref{lema:div}, obtém $\binom{n}{k}$. Também é desejável que as
+esperas sejam por bloqueio, e não por espera ocupada.
 
 
 %======================================================================
