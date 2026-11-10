@@ -1,0 +1,181 @@
+\documentclass[a4paper, 12pt]{article}
+
+\usepackage[portuges]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{indentfirst}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{verbatim}
+\usepackage{textcomp}
+\usepackage{gensymb}
+\usepackage{float}
+\usepackage{url}
+\usepackage{listings}
+
+% Ambiente "Lema" (o \begin{proof} ... \end{proof} já vem do amsthm)
+\newtheorem{lema}{Lema}
+
+% Configuração dos códigos em C.
+% O "literate" serve pra os acentos dos comentários em português não quebrarem o listings.
+\lstset{
+    language=C,
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\bfseries\color{blue!70!black},
+    commentstyle=\itshape\color{green!40!black},
+    stringstyle=\color{red!60!black},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true,
+    showstringspaces=false,
+    tabsize=4,
+    literate={á}{{\'a}}1 {à}{{\`a}}1 {ã}{{\~a}}1 {â}{{\^a}}1
+             {é}{{\'e}}1 {ê}{{\^e}}1 {í}{{\'\i}}1
+             {ó}{{\'o}}1 {õ}{{\~o}}1 {ô}{{\^o}}1 {ú}{{\'u}}1 {ç}{{\c c}}1
+             {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+             {Ã}{{\~A}}1 {Õ}{{\~O}}1 {Ç}{{\c C}}1
+}
+
+\begin{document}
+
+\begin{titlepage}
+\begin{center}
+\textbf{\LARGE Universidade de Brasília}\\[0.5cm]
+\textbf{\large Departamento de Ciência da Computação}\\[0.2cm]
+\vspace{20pt}
+
+\par
+\vspace{32pt}
+% O \par DENTRO das chaves faz o LaTeX usar o espaçamento de linha do \LARGE
+% (antes ele usava o do tamanho normal, por isso as linhas ficavam grudadas).
+{\LARGE\bfseries Relatório do Trabalho 1 de\\[0.25cm] Programação Concorrente\par}
+\vspace{30pt}
+\Large {Evelyn Soares Pereira	17/0102785}\\[0.1cm]
+
+\end{center}
+
+\par
+\vfill
+\begin{center}
+{{\normalsize Brasília}\\
+{\normalsize \today}}
+\end{center}
+\end{titlepage}
+
+\newpage
+
+% Limite: 4 páginas, sem contar capa e códigos inseridos no texto.
+
+%======================================================================
+\section{Introdução}
+%======================================================================
+% - Contexto: processos/threads se comunicando por memória compartilhada,
+%   condições de corrida, por que sincronizar.
+% - Qual problema foi escolhido e de onde vem
+%   (Ben-Ari, Apêndice C, exercício 8 -- proposto por Manna e Pnueli).
+% - Objetivo do trabalho e o que tem em cada seção do relatório.
+
+
+%======================================================================
+\section{Formalização do Problema Proposto}
+%======================================================================
+
+\subsection{O Coeficiente Binomial}
+% Definição e o que é numerador / denominador.
+\begin{equation}
+    \binom{n}{k} = \frac{n!}{(n-k)!\,k!}
+                 = \frac{n \cdot (n-1) \cdots (n-k+1)}{1 \cdot 2 \cdots k}
+\end{equation}
+
+% Exemplo numérico (pode usar o do enunciado: 10 . 9 . 8 / 1 . 2 . 3).
+
+
+\subsection{Divisibilidade dos Resultados Parciais}
+
+\begin{lema}
+    % Diga para quais valores de i e j o lema vale.
+    $i!$ divide $j \cdot (j+1) \cdots (j+i-1)$.
+\end{lema}
+
+\begin{proof}
+    % Sua prova aqui.
+\end{proof}
+
+% Ligar o lema com o problema: por que ele permite fazer a divisão
+% imediatamente e o que isso resolve (crescimento dos valores intermediários).
+
+
+\subsection{Processos, Dados Compartilhados e Condições de Corrida}
+% - Quais threads existem e o que cada uma faz.
+% - Quais variáveis são compartilhadas entre elas.
+% - Onde está a condição de corrida (o que pode dar errado sem sincronização).
+% - Quais propriedades a solução precisa garantir.
+
+
+%======================================================================
+\section{Descrição do Algoritmo Desenvolvido para Solução do Problema Proposto}
+%======================================================================
+
+\subsection{Visão Geral}
+% A ideia da solução em texto. Uma figura da interação entre as threads ajuda.
+
+
+\subsection{Mecanismos de Sincronização Utilizados}
+% Quais mecanismos (locks, variáveis de condição, semáforos...) e POR QUE.
+
+
+\subsection{Pseudocódigo}
+% Pseudocódigo de cada thread.
+% \begin{lstlisting}[language={}, numbers=none]
+% ...
+% \end{lstlisting}
+
+
+\subsection{Corretude}
+% Argumentar por que a solução funciona: resultado correto,
+% exclusão mútua, ausência de deadlock e de starvation.
+
+
+\subsection{Implementação}
+% - Arquivo(s), como compilar e executar:
+%     gcc -o NOME NOME.c -lpthread
+% - Trechos importantes do código:
+% \lstinputlisting[caption={Descrição do trecho}]{NOME.c}
+
+
+\subsection{Testes e Resultados}
+% Quais valores de n e k foram testados, saída esperada x obtida.
+% \begin{verbatim}
+% saída do programa aqui
+% \end{verbatim}
+
+
+%======================================================================
+\section{Conclusão}
+%======================================================================
+% - O que foi feito.
+% - Dificuldades e o que aprendeu.
+% - Limitações e possíveis extensões.
+
+
+%======================================================================
+\section{Referências}
+%======================================================================
+
+\sloppy
+\noindent
+BEN-ARI, Mordechai. \textbf{Principles of Concurrent and Distributed Programming}. 2. ed. Harlow: Addison-Wesley, 2006. ISBN 978-0-321-31283-9.
+
+% \vspace{0.4cm}
+% \noindent
+% ALCHIERI, Eduardo A. P. \textbf{Programação Concorrente}. Notas de aula. Brasília: Universidade de Brasília, 2026.
+
+% \vspace{0.4cm}
+% \noindent
+% (Outras: documentação do POSIX Threads, etc.)
+
+\fussy
+
+\end{document}
