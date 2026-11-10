@@ -50,6 +50,10 @@
              {Ã}{{\~A}}1 {Õ}{{\~O}}1 {Ç}{{\c C}}1
 }
 
+% Links clicáveis no PDF (o link do vídeo na capa fica azul;
+% as referências internas, como "Tabela 1", continuam pretas).
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=blue]{hyperref}
+
 \begin{document}
 
 \begin{titlepage}
@@ -93,7 +97,8 @@ coeficiente binomial $\binom{n}{k}$ com um processo para o numerador e outro
 para o denominador, que entrega resultados parciais para que as divisões
 sejam feitas imediatamente, mantendo pequenos os valores intermediários. A
 comunicação entre os dois é sincronizada com semáforos e implementada em C
-com POSIX Pthreads.
+com POSIX Pthreads. O vídeo de apresentação está disponível em
+{\small\url{https://drive.google.com/file/d/1Y3EX2KlxSxCQvrQPshtLqXxmx1JRG9BG/view?usp=sharing}}.
 
 
 %======================================================================
