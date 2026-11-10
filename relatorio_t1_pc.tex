@@ -22,6 +22,9 @@
 % Listas (itemize/enumerate) mais compactas, pra economizar espaço.
 \usepackage{enumitem}
 \setlist{itemsep=1pt, topsep=3pt}
+% Deixa o LaTeX esticar um pouco os espaços em vez de deixar palavras longas
+% (como \texttt{posicoes\_livres}) passarem da margem.
+\setlength{\emergencystretch}{3em}
 
 % Ambiente "Lema" (o \begin{proof} ... \end{proof} já vem do amsthm)
 \newtheorem{lema}{Lema}
@@ -219,31 +222,32 @@ $2{,}3 \times 10^{9}$, contra $2{,}0 \times 10^{20}$ do numerador completo.
 
 O programa tem três \emph{threads}:
 \begin{itemize}
-    \item \textbf{Denominador} ($T_d$): gera, em ordem, os fatores
-          $1, 2, \dots, k$ e os escreve num \emph{buffer} compartilhado;
-    \item \textbf{Numerador} ($T_n$): para $i = 1, \dots, k$, multiplica o
-          seu acumulado por $n-i+1$, lê o próximo fator do \emph{buffer} e
+    \item \textbf{Denominador}: gera, em ordem, os fatores $1, 2, \dots, k$
+          e os escreve num \emph{buffer} compartilhado;
+    \item \textbf{Numerador}: para $i = 1, \dots, k$, multiplica o seu
+          acumulado por $n-i+1$, lê o próximo fator do \emph{buffer} e
           divide o acumulado por ele;
-    \item \textbf{Principal}: lê $n$ e $k$, cria $T_d$ e $T_n$, espera as
-          duas terminarem (\texttt{pthread\_join}) e imprime o resultado.
+    \item \textbf{Principal}: cria as outras duas, espera que terminem
+          (\texttt{pthread\_join}) e imprime o resultado.
 \end{itemize}
 
-O acumulado pertence só a $T_n$ (a principal só o lê depois do
+O acumulado pertence só ao Numerador (a Principal só o lê depois do
 \texttt{pthread\_join}), então não há disputa por ele. O que é compartilhado
-é o \emph{buffer}: as posições de memória onde $T_d$ escreve os fatores e de
-onde $T_n$ os lê, junto com as variáveis que indicam quantos fatores estão
-disponíveis. Sem sincronização, ele está sujeito a três condições de
-corrida:
+é o \emph{buffer}: as posições de memória onde o Denominador escreve os
+fatores e de onde o Numerador os lê, junto com as variáveis que indicam
+quantos fatores estão disponíveis. Sem sincronização, ele está sujeito a
+três condições de corrida:
 \begin{enumerate}
-    \item \textbf{Leitura antes da escrita:} $T_n$ lê uma posição em que
-          $T_d$ ainda não escreveu e obtém um valor antigo ou o valor
-          inicial (se for 0, divide por zero).
-    \item \textbf{Sobrescrita:} $T_d$ escreve um fator por cima de outro que
-          $T_n$ ainda não leu, e esse divisor se perde.
+    \item \textbf{Leitura antes da escrita:} o Numerador lê uma posição em
+          que o Denominador ainda não escreveu e obtém um valor antigo ou o
+          valor inicial (se for 0, divide por zero).
+    \item \textbf{Sobrescrita:} o Denominador escreve um fator por cima de
+          outro que o Numerador ainda não leu, e esse divisor se perde.
     \item \textbf{Atualização perdida:} se as duas \emph{threads} alteram a
-          mesma variável de controle (por exemplo, \texttt{qtd++} em $T_d$ e
-          \texttt{qtd-{}-} em $T_n$), cada operação é feita em três passos
-          (ler, alterar, escrever), e uma alteração pode apagar a outra.
+          mesma variável de controle (por exemplo, \texttt{qtd++} no
+          Denominador e \texttt{qtd-{}-} no Numerador), cada operação é feita
+          em três passos (ler, alterar, escrever), e uma alteração pode
+          apagar a outra.
 \end{enumerate}
 
 A Tabela~\ref{tab:corrida} mostra uma execução de $\binom{5}{2} = 10$ sem
@@ -254,9 +258,10 @@ acontecem e o programa imprime 4 sem nenhum erro aparente.
 \centering
 \caption{Execução sem sincronização de $\binom{5}{2}$, passo a passo.}
 \label{tab:corrida}
+\small
 \begin{tabular}{clclcl}
 \hline
-Passo & $T_d$ & \emph{buffer} & $T_n$ & Acumulado & Problema \\
+Passo & Denominador & \emph{buffer} & Numerador & Acumulado & Problema \\
 \hline
 \ok{1}   & \ok{--}          & \ok{--}  & \ok{multiplica por 5}        & \ok{5}   & \\
 \ok{2}   & \ok{escreve 1}   & \ok{1}   & \ok{--}                      & \ok{5}   & \\
@@ -270,13 +275,14 @@ Passo & $T_d$ & \emph{buffer} & $T_n$ & Acumulado & Problema \\
 
 Uma solução correta deve garantir:
 \begin{itemize}
-    \item \textbf{entrega exata:} cada fator é lido por $T_n$ exatamente uma
-          vez, na ordem em que foi escrito;
+    \item \textbf{entrega exata:} cada fator é lido pelo Numerador
+          exatamente uma vez, na ordem em que foi escrito;
     \item \textbf{exclusão mútua} no acesso às variáveis do \emph{buffer};
     \item \textbf{término sem \emph{deadlock}:} as duas \emph{threads}
           terminam após $k$ iterações.
 \end{itemize}
-Com as duas primeiras, $T_n$ repete exatamente a Tabela~\ref{tab:exemplo}
+Com as duas primeiras, o Numerador repete exatamente a
+Tabela~\ref{tab:exemplo}
 e, pelo Lema~\ref{lema:div}, obtém $\binom{n}{k}$. Também é desejável que as
 esperas sejam por bloqueio, e não por espera ocupada.
 
@@ -291,7 +297,40 @@ esperas sejam por bloqueio, e não por espera ocupada.
 
 
 \subsection{Mecanismos de Sincronização Utilizados}
-% Quais mecanismos (locks, variáveis de condição, semáforos...) e POR QUE.
+
+A solução usa apenas dois semáforos POSIX (\texttt{sem\_t}) e um
+\emph{buffer} circular de $N$ posições:
+\begin{itemize}
+    \item \texttt{posicoes\_livres}, iniciado com $N$, conta as posições do
+          \emph{buffer} que podem ser escritas. O Denominador faz
+          \texttt{sem\_wait} nele antes de escrever, e o Numerador faz
+          \texttt{sem\_post} depois de ler.
+    \item \texttt{fatores\_prontos}, iniciado com 0, conta os fatores
+          escritos e ainda não lidos. O Numerador faz \texttt{sem\_wait} nele
+          antes de ler, e o Denominador faz \texttt{sem\_post} depois de
+          escrever.
+\end{itemize}
+
+O semáforo foi escolhido porque o problema é, no fundo, contar recursos: um
+semáforo é um contador cujas operações são atômicas e que bloqueia a
+\emph{thread} quando chega a zero, sem espera ocupada. Assim, o
+\texttt{sem\_wait} em \texttt{fatores\_prontos} impede a corrida 1, o
+\texttt{sem\_wait} em \texttt{posicoes\_livres} impede a corrida 2, e a
+corrida 3 deixa de existir, porque o contador de fatores disponíveis passa a
+ser o próprio semáforo. O \texttt{sem\_wait} e o \texttt{sem\_post} de cada
+semáforo ficam em \emph{threads} diferentes: aqui os semáforos sinalizam
+eventos de uma \emph{thread} para a outra, e não fazem exclusão mútua.
+
+\paragraph{Por que não há \emph{mutex}.} Com um único escritor e um único
+leitor, nenhuma variável é alterada pelas duas \emph{threads} ao mesmo
+tempo. O índice de escrita do \emph{buffer} só é usado pelo Denominador, e o
+de leitura, só pelo Numerador; $n$, $k$ e $N$ são constantes; e o
+resultado só é lido pela
+Principal após o \texttt{pthread\_join}. Resta o vetor do \emph{buffer}, e
+os dois semáforos garantem que o Numerador só lê uma posição depois que o
+Denominador a escreveu, e que o Denominador só a reescreve depois que o
+Numerador a leu. Um \emph{mutex} só seria necessário com mais de um escritor
+ou mais de um leitor, que passariam a disputar o mesmo índice.
 
 
 \subsection{Pseudocódigo}
@@ -302,22 +341,149 @@ esperas sejam por bloqueio, e não por espera ocupada.
 
 
 \subsection{Corretude}
-% Argumentar por que a solução funciona: resultado correto,
-% exclusão mútua, ausência de deadlock e de starvation.
+
+No código, cada \texttt{sem\_wait} é precedido de um \texttt{sem\_trywait},
+que só serve para imprimir um aviso quando a \emph{thread} vai bloquear; o
+par tem o mesmo efeito de um único \texttt{sem\_wait}, e é assim que ele é
+tratado a seguir.
+
+Sejam $L$ e $P$ os valores de \texttt{posicoes\_livres} e
+\texttt{fatores\_prontos}. Seja $a_d = 1$ enquanto o Denominador já passou
+do seu \texttt{sem\_wait} mas ainda não fez o \texttt{sem\_post}
+correspondente, e $a_d = 0$ caso contrário; $a_n$ é definido da mesma forma
+para o Numerador. No início, $L = N$ e $P = a_d = a_n = 0$. O
+\texttt{sem\_wait} do Denominador transfere uma unidade de $L$ para $a_d$, e
+o seu \texttt{sem\_post} transfere $a_d$ para $P$; o Numerador faz o mesmo no
+sentido contrário, de $P$ para $a_n$ e de $a_n$ para $L$. Nenhuma operação
+cria ou destrói unidades, então em todo instante vale o invariante
+\begin{equation}\label{eq:invariante}
+    L + P + a_d + a_n = N.
+\end{equation}
+
+\paragraph{Ausência de condições de corrida.} O $j$-ésimo fator é escrito
+pelo Denominador na posição $(j-1) \bmod N$, e o Numerador lê as posições
+na mesma ordem circular.
+\begin{itemize}
+    \item O Numerador só lê o $i$-ésimo fator depois do seu $i$-ésimo
+          \texttt{sem\_wait} em \texttt{fatores\_prontos}, que só tem sucesso
+          depois de $i$ \texttt{sem\_post}s do Denominador, ou seja, depois
+          que o $i$-ésimo fator foi escrito. Não há leitura antes da escrita
+          (corrida 1).
+    \item O Denominador só escreve o $j$-ésimo fator depois do seu
+          $j$-ésimo \texttt{sem\_wait} em \texttt{posicoes\_livres}. Como o
+          semáforo começa em $N$, para $j > N$ isso exige pelo menos $j - N$
+          \texttt{sem\_post}s do Numerador, ou seja, que o fator $j - N$, que
+          ocupava a mesma posição, já tenha sido lido. Não há sobrescrita
+          (corrida 2).
+    \item O único contador compartilhado é o valor dos próprios semáforos,
+          e as operações sobre ele são atômicas (corrida 3).
+\end{itemize}
+Além disso, no padrão POSIX, \texttt{sem\_post} e \texttt{sem\_wait}
+sincronizam a memória: o valor escrito antes do \texttt{sem\_post} é o que o
+Numerador enxerga depois do \texttt{sem\_wait}. Logo, cada fator é lido
+exatamente uma vez e na ordem em que foi escrito (entrega exata).
+
+\paragraph{Resultado correto.} Com a entrega exata, o Numerador executa
+exatamente a sequência da Tabela~\ref{tab:exemplo}: no passo $i$, multiplica
+por $n-i+1$ e divide por $i$. Pela Seção~2.2, cada divisão é exata e o
+acumulado depois do passo $i$ é $\binom{n}{i}$; ao final, $\binom{n}{k}$.
+
+\paragraph{Ausência de \emph{deadlock}.} Uma \emph{thread} só bloqueia em um
+\texttt{sem\_wait}. Para haver \emph{deadlock}, as duas teriam de estar
+bloqueadas ao mesmo tempo: o Denominador em \texttt{posicoes\_livres}, com
+$L = 0$ e $a_d = 0$ (\emph{buffer} cheio), e o Numerador em
+\texttt{fatores\_prontos}, com $P = 0$ e $a_n = 0$ (\emph{buffer} vazio).
+Nesse caso $L + P + a_d + a_n = 0 \neq N$, o que contradiz o
+invariante~\eqref{eq:invariante}, já que $N \ge 1$. Intuitivamente, o
+\emph{buffer} não pode estar cheio e vazio ao mesmo tempo.
+
+\paragraph{Término e ausência de \emph{starvation}.} Uma \emph{thread}
+também não fica bloqueada para sempre porque a outra terminou. Se o
+Numerador terminou, ele fez $k$ \texttt{sem\_post}s em
+\texttt{posicoes\_livres}; se o Denominador espera a sua $j$-ésima posição
+($j \le k$), ele fez antes $j-1$ \texttt{sem\_wait}s, então
+$L = N - (j-1) + k \ge N + 1 > 0$, e ele não estaria bloqueado.
+Simetricamente, se o Denominador terminou e o Numerador espera o seu
+$i$-ésimo fator, $P = k - (i-1) \ge 1$. Assim, se o Denominador está
+bloqueado ($L = 0$, $a_d = 0$), o invariante dá $P + a_n = N \ge 1$, e o
+Numerador, que não está bloqueado nem terminou, ou já tem um fator na mão
+($a_n = 1$) ou encontrará um pronto ($P \ge 1$); em ambos os casos, ele fará
+o \texttt{sem\_post} em \texttt{posicoes\_livres} em um número finito de
+passos. O caso do Numerador bloqueado é simétrico. Como só o Denominador
+espera em \texttt{posicoes\_livres} e só o Numerador espera em
+\texttt{fatores\_prontos}, esse \texttt{sem\_post} acorda exatamente a
+\emph{thread} bloqueada: não há várias \emph{threads} disputando o mesmo
+semáforo e, portanto, não há \emph{starvation}. Como cada laço tem
+exatamente $k$ iterações, as duas \emph{threads} terminam e os
+\texttt{pthread\_join} da Principal retornam. Supõe-se, como de costume, um
+escalonador justo, em que toda \emph{thread} pronta acaba sendo executada.
 
 
 \subsection{Implementação}
-% - Arquivo(s), como compilar e executar:
-%     gcc -o NOME NOME.c -lpthread
+
+A solução está no arquivo \texttt{coef\_binomial.c}. Para compilar e
+executar:
+\begin{lstlisting}[language={}, numbers=none]
+gcc -Wall -o coef_binomial coef_binomial.c -lpthread
+./coef_binomial
+\end{lstlisting}
+
+Os valores de $n$, $k$ e do tamanho $N$ do \emph{buffer} são constantes
+definidas no início do código, com padrão $n = 10$, $k = 5$ e $N = 2$ (a
+execução termina com \texttt{Resultado: C(10, 5) = 252}). O \emph{buffer} é
+menor que $k$ de propósito, para que o Denominador encha o \emph{buffer} e a
+espera apareça na saída. Para calcular outro coeficiente, basta alterar
+essas constantes e compilar de novo.
+
 % - Trechos importantes do código:
 % \lstinputlisting[caption={Descrição do trecho}]{NOME.c}
 
 
 \subsection{Testes e Resultados}
-% Quais valores de n e k foram testados, saída esperada x obtida.
-% \begin{verbatim}
-% saída do programa aqui
-% \end{verbatim}
+
+A Tabela~\ref{tab:testes} lista casos de teste, com o resultado esperado e o
+que cada um mostra. Para reproduzir um caso, basta trocar os valores de
+\texttt{VALOR\_N}, \texttt{VALOR\_K} e \texttt{TAM\_BUFFER} no início do
+código e compilar de novo. Todos os casos da tabela foram executados e
+imprimiram o resultado esperado. Por causa das pausas (\texttt{sleep}) que
+simulam o tempo de cada operação, a execução leva cerca de 4 segundos por
+passo do Numerador, ou seja, cerca de $4k$ segundos.
+
+\begin{table}[H]
+\centering
+\caption{Casos de teste sugeridos.}
+\label{tab:testes}
+\small
+\begin{tabular}{rrrrl}
+\hline
+$n$ & $k$ & $N$ & $\binom{n}{k}$ esperado & O que o caso mostra \\
+\hline
+10  & 5  & 2 & 252           & padrão: o \emph{buffer} enche e o Denominador espera \\
+10  & 3  & 5 & 120           & exemplo do enunciado (Tabela~\ref{tab:exemplo}) \\
+5   & 2  & 1 & 10            & caso da Tabela~\ref{tab:corrida}, agora correto; \\
+    &    &   &               & com $N = 1$, as \emph{threads} se alternam \\
+7   & 0  & 2 & 1             & $k = 0$: nenhuma \emph{thread} entra no laço \\
+7   & 7  & 2 & 1             & $k = n$ \\
+30  & 15 & 5 & 155\,117\,520 & o numerador completo estouraria 64 bits \\
+100 & 5  & 5 & 75\,287\,520  & $n$ grande e $k$ pequeno \\
+\hline
+\end{tabular}
+\end{table}
+
+A Figura~\ref{fig:saida} mostra a saída da execução padrão. O Denominador,
+mais rápido, escreve os fatores 2 e 3, encontra o \emph{buffer} cheio e
+espera; só volta a escrever depois que o Numerador lê um fator e libera uma
+posição. Os índices de escrita e leitura alternam entre as posições 0 e 1
+do \emph{buffer} circular. Depois de cada divisão, o acumulado vale 10, 45,
+120, 210 e 252, ou seja, $\binom{10}{i}$ para $i = 1, \dots, 5$, como
+previsto na Seção~2.2.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figuras/saida_padrao.png}
+\caption{Saída da execução padrão ($n = 10$, $k = 5$, $N = 2$).}
+\label{fig:saida}
+\end{figure}
 
 
 %======================================================================

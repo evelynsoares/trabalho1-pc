@@ -9,3 +9,6 @@ trabalho_concorrencia.pdf
 *.synctex.gz
 *.out
 *.toc
+
+# Executável do programa em C
+coef_binomial
