@@ -1,2 +1,11 @@
 Principles of concurrent and distributed programming, 2nd edition-Ben-Ari-2006.pdf
 trabalho_concorrencia.pdf
+
+# Arquivos auxiliares do LaTeX
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.out
+*.toc

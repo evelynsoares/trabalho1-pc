@@ -71,51 +71,147 @@
 %======================================================================
 \section{Introdução}
 %======================================================================
-% - Contexto: processos/threads se comunicando por memória compartilhada,
-%   condições de corrida, por que sincronizar.
-% - Qual problema foi escolhido e de onde vem
-%   (Ben-Ari, Apêndice C, exercício 8 -- proposto por Manna e Pnueli).
-% - Objetivo do trabalho e o que tem em cada seção do relatório.
+
+Em programação concorrente, \emph{threads} que cooperam por memória
+compartilhada correm o risco de \emph{condições de corrida}: se duas delas
+acessam o mesmo dado sem coordenação e pelo menos uma escreve, o resultado
+passa a depender da ordem em que o escalonador intercala suas instruções.
+Como essa ordem muda a cada execução, os erros aparecem em uma execução e
+podem sumir na seguinte. Para evitá-los, as \emph{threads} são
+sincronizadas com mecanismos como \emph{locks}, variáveis de condição e
+semáforos.
+
+Este trabalho aplica esses mecanismos a um problema de Manna e Pnueli,
+apresentado por Ben-Ari (2006, Apêndice C, exercício 8): calcular o
+coeficiente binomial $\binom{n}{k}$ com dois processos, um para o numerador e
+outro para o denominador. O denominador entrega resultados parciais ao
+numerador, que divide assim que os recebe, impedindo que os valores
+intermediários cresçam demais. Essa comunicação acontece por memória
+compartilhada e, sem sincronização, está sujeita a condições de corrida. A
+solução foi implementada em C com POSIX Pthreads. A
+Seção~\ref{sec:formalizacao} formaliza o problema, a
+Seção~\ref{sec:algoritmo} descreve o algoritmo, a implementação e os testes,
+e a Seção~\ref{sec:conclusao} conclui o trabalho.
 
 
 %======================================================================
 \section{Formalização do Problema Proposto}
+\label{sec:formalizacao}
 %======================================================================
 
 \subsection{O Coeficiente Binomial}
-% Definição e o que é numerador / denominador.
+
+Para inteiros $0 \le k \le n$,
 \begin{equation}
     \binom{n}{k} = \frac{n!}{(n-k)!\,k!}
-                 = \frac{n \cdot (n-1) \cdots (n-k+1)}{1 \cdot 2 \cdots k}
+                 = \frac{n \cdot (n-1) \cdots (n-k+1)}{1 \cdot 2 \cdots k},
 \end{equation}
+ou seja, há $k$ fatores no numerador e $k$ no denominador. Calcular o
+numerador inteiro e só dividir no final é inviável mesmo para valores
+modestos: em $\binom{30}{15}$, o numerador
+$30 \cdot 29 \cdots 16 \approx 2{,}0 \times 10^{20}$ não cabe em 64 bits
+($\approx 1{,}8 \times 10^{19}$), embora o resultado ($155\,117\,520$)
+caiba em 32. A proposta do exercício é intercalar as operações: no passo
+$i$, multiplicar o valor acumulado pelo $i$-ésimo fator do numerador e
+dividir pelo $i$-ésimo fator do denominador (Tabela~\ref{tab:exemplo}).
 
-% Exemplo numérico (pode usar o do enunciado: 10 . 9 . 8 / 1 . 2 . 3).
+\begin{table}[H]
+\centering
+\caption{Cálculo de $\binom{10}{3}$ intercalando multiplicações e divisões.}
+\label{tab:exemplo}
+\begin{tabular}{ccccc}
+\hline
+Passo $i$ & Multiplica por & Antes da divisão & Divide por & Depois da divisão \\
+\hline
+1 & 10 & 10  & 1 & 10  \\
+2 & 9  & 90  & 2 & 45  \\
+3 & 8  & 360 & 3 & 120 \\
+\hline
+\end{tabular}
+\end{table}
 
+Como a divisão inteira em C descarta o resto sem aviso, esse método só
+funciona se toda divisão intermediária for exata, o que é provado a seguir.
 
 \subsection{Divisibilidade dos Resultados Parciais}
 
-\begin{lema}
-    % Diga para quais valores de i e j o lema vale.
-    $i!$ divide $j \cdot (j+1) \cdots (j+i-1)$.
+Seja $P(i,j) = j \cdot (j+1) \cdots (j+i-1)$ o produto de $i$ inteiros
+consecutivos começando em $j$.
+
+\begin{lema}\label{lema:div}
+    Para todos os inteiros $i \ge 1$ e $j \ge 1$, $i!$ divide $P(i,j)$.
 \end{lema}
 
 \begin{proof}
-    % Sua prova aqui.
+    % TODO(Evelyn): passar a prova do papel pra cá.
+    % Estrutura: indução em i (de fora); dentro do passo, indução em j.
+    %  1. Base de fora (i = 1).
+    %  2. Identidade P(i, j+1) - P(i, j) = i . P(i-1, j+1):
+    %     mostrar a conta (fator comum em evidência), não só afirmar.
+    %  3. Passo de fora (i >= 2), supondo que (i-1)! divide P(i-1, m)
+    %     para TODO m >= 1:
+    %     3a. base de dentro (j = 1);
+    %     3b. passo de dentro (j -> j+1), usando a identidade.
 \end{proof}
 
-% Ligar o lema com o problema: por que ele permite fazer a divisão
-% imediatamente e o que isso resolve (crescimento dos valores intermediários).
+Após $i$ multiplicações, o numerador acumulou
+$N_i = n(n-1)\cdots(n-i+1) = P(i,\, n-i+1)$, com $n-i+1 \ge 1$ porque
+$i \le k \le n$; pelo lema, $i!$ divide $N_i$ (como no enunciado:
+$1 \cdot 2$ divide $10 \cdot 9$ e $1 \cdot 2 \cdot 3$ divide
+$10 \cdot 9 \cdot 8$). Se o valor acumulado já foi dividido por
+$1, 2, \dots, i-1$, antes da $i$-ésima divisão ele vale
+$r_i = N_i/(i-1)!$, e $r_i/i = N_i/i! = \binom{n}{i}$ é inteiro. Logo, o
+denominador só precisa entregar o próximo fator $i$ (dividir por
+$1, \dots, i$ em sequência equivale a dividir por $i!$), e o maior valor
+intermediário, $r_i = i\binom{n}{i}$, fica muito abaixo de $N_k$: em
+$\binom{30}{15}$, cerca de $2{,}3 \times 10^{9}$ contra
+$2{,}0 \times 10^{20}$.
 
 
 \subsection{Processos, Dados Compartilhados e Condições de Corrida}
-% - Quais threads existem e o que cada uma faz.
-% - Quais variáveis são compartilhadas entre elas.
-% - Onde está a condição de corrida (o que pode dar errado sem sincronização).
-% - Quais propriedades a solução precisa garantir.
+
+Além da \emph{thread} principal, que lê $n$ e $k$, cria as outras duas,
+espera seu término e imprime o resultado, há duas \emph{threads} numa
+relação produtor/consumidor:
+\begin{itemize}
+    \item \textbf{Denominador} ($T_d$, produtor): entrega, em ordem, os
+          fatores $1, 2, \dots, k$;
+    \item \textbf{Numerador} ($T_n$, consumidor): para $i = 1, \dots, k$,
+          multiplica o acumulado por $n-i+1$, obtém o $i$-ésimo fator de
+          $T_d$ e divide por ele.
+\end{itemize}
+O acumulado é local a $T_n$ (a principal só o lê após o
+\texttt{pthread\_join}). O dado compartilhado é o \emph{canal} entre $T_d$ e
+$T_n$: as posições onde os fatores são depositados e as variáveis que
+controlam quantos estão disponíveis. Sem sincronização, há três condições
+de corrida: (1)~\textbf{leitura antes da escrita}, em que $T_n$ lê um valor
+antigo ou o inicial (se for 0, divide por zero); (2)~\textbf{sobrescrita},
+em que $T_d$ deposita um fator antes de o anterior ser consumido e um
+divisor se perde; e (3)~\textbf{atualização perdida}, porque incrementos e
+decrementos concorrentes de uma variável de controle (\texttt{qtd++},
+\texttt{qtd-{}-}) não são atômicos e um deles pode se perder. A intercalação
+abaixo, para $\binom{5}{2} = 10$, combina (1) e (2) e termina com 4, sem
+nenhum erro aparente:
+
+\begin{lstlisting}[language={}, numbers=none]
+T_n: acc = 1 * 5 = 5
+T_d: escreve 1; escreve 2       (o 1 se perde)
+T_n: lê 2 -> acc = 5 / 2 = 2    (divisão truncada)
+T_n: acc = 2 * 4 = 8; lê 2 de novo -> acc = 8 / 2 = 4
+\end{lstlisting}
+
+Uma solução correta deve garantir: \textbf{entrega exata} (cada fator é
+consumido exatamente uma vez, na ordem em que foi produzido);
+\textbf{exclusão mútua} no acesso às variáveis do canal; e \textbf{término
+sem \emph{deadlock}} (as duas \emph{threads} terminam após $k$ iterações).
+Com as duas primeiras, $T_n$ executa a mesma sequência da
+Tabela~\ref{tab:exemplo} e, pelo lema, obtém $\binom{n}{k}$. É desejável,
+ainda, que as esperas sejam por bloqueio, e não por espera ocupada.
 
 
 %======================================================================
 \section{Descrição do Algoritmo Desenvolvido para Solução do Problema Proposto}
+\label{sec:algoritmo}
 %======================================================================
 
 \subsection{Visão Geral}
@@ -154,6 +250,7 @@
 
 %======================================================================
 \section{Conclusão}
+\label{sec:conclusao}
 %======================================================================
 % - O que foi feito.
 % - Dificuldades e o que aprendeu.
