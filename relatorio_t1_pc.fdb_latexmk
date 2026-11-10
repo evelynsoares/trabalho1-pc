@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1794282389.45105 "relatorio_t1_pc.tex" "relatorio_t1_pc.pdf" "relatorio_t1_pc" 1794282391.82685 0
+["pdflatex"] 1794283027.81362 "relatorio_t1_pc.tex" "relatorio_t1_pc.pdf" "relatorio_t1_pc" 1794283028.65439 0
   "/etc/texmf/web2c/texmf.cnf" 1788526634.21959 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/tcrm0600.tfm" 1136768653 1536 12e8c510d3e158fdd0e9a42e75118bd9 ""
@@ -156,8 +156,8 @@
   "/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map" 1788528250.61788 5472669 54eaf61a88b6b7896ebd0dac973cb29c ""
   "/var/lib/texmf/web2c/pdftex/pdflatex.fmt" 1788528274 8212062 f269c33cc22e2c08ff8c37989da1657d ""
   "figuras/saida_padrao.png" 1794281778.78343 83681 d3b87a975173b67e9a3352887035755c ""
-  "relatorio_t1_pc.aux" 1794282391.75853 2077 cfe02a2aaaf0497e3fa89c47d7b5353c "pdflatex"
-  "relatorio_t1_pc.tex" 1794282387.6009 16051 0b89fd85cf555ad6bb6c00743b495170 ""
+  "relatorio_t1_pc.aux" 1794283028.56637 2077 cfe02a2aaaf0497e3fa89c47d7b5353c "pdflatex"
+  "relatorio_t1_pc.tex" 1794283023.3829 16079 cd5db85432141cc3586ca5d27743c259 ""
   (generated)
   "relatorio_t1_pc.aux"
   "relatorio_t1_pc.log"

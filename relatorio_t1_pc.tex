@@ -348,9 +348,9 @@ corretude, ausência de \emph{deadlock} e de \emph{starvation}. O lema de
 divisibilidade garante que as divisões intermediárias são exatas e mantêm os
 valores pequenos. A principal limitação é o tamanho do inteiro: com 64 bits,
 casos como $\binom{67}{33}$, cujo resultado cabe mas um valor intermediário
-não, são recusados. Extensões naturais seriam usar inteiros de precisão
-arbitrária ou várias \emph{threads} de cada tipo, o que exigiria também um
-\emph{mutex} nos índices do \emph{buffer}.
+não, são recusados; uma biblioteca de precisão arbitrária, como a GMP,
+removeria esse limite. Já usar mais \emph{threads} não ajudaria: cada passo
+do Numerador depende do anterior, e os fatores precisam chegar em ordem.
 
 
 %======================================================================
