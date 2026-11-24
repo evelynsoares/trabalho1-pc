@@ -39,8 +39,8 @@ int main() {
 		erro = pthread_create(&tP[i], NULL, macacoA, (void *)(id));
 
 		if (erro) {
-		printf("erro na criacao do thread %d\n", i);
-		exit(1);
+			printf("erro na criacao do thread %d\n", i);
+			exit(1);
 		}
 	}
 
@@ -51,8 +51,8 @@ int main() {
 		erro = pthread_create(&tA[i], NULL, macacoB, (void *)(id));
 
 		if (erro) {
-		printf("erro na criacao do thread %d\n", i);
-		exit(1);
+			printf("erro na criacao do thread %d\n", i);
+			exit(1);
 		}
 	}
 
@@ -62,8 +62,8 @@ int main() {
 		*id = i;
 		erro = pthread_create(&tF[i], NULL, gorilaA, (void *)(id));
 		if (erro) {
-		printf("erro na criacao do thread %d\n", i);
-		exit(1);
+			printf("erro na criacao do thread %d\n", i);
+			exit(1);
 		}
 	}
 
@@ -73,8 +73,8 @@ int main() {
 		*id = i;
 		erro = pthread_create(&tGB[i], NULL, gorilaB, (void *)(id));
 		if (erro) {
-		printf("erro na criacao do thread %d\n", i);
-		exit(1);
+			printf("erro na criacao do thread %d\n", i);
+			exit(1);
 		}
 	}
 

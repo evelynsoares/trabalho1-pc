@@ -4,24 +4,24 @@
 #include "errno.h"
 #include "sys/wait.h"
 
-int main(){
-    int i = 0;
-    int valor = 10;
+int main() {
+	int i = 0;
+	int valor = 10;
 
-    for (i = 0; i < 3; i++) {
-        pid_t pid = fork();
-        
-        if (pid == 0)  { // filho
-            valor++;
-        } else { // pai -> Wait for a child matching PID to die.
-            valor--;
-            // waitpid(pid, NULL, 0); força pai a esperar filho terminar ants de serguir (print)
-        }
-    }
+	for (i = 0; i < 3; i++) {
+		pid_t pid = fork();
 
-    printf("valor = %d\n", valor);
-    
-    return 0;
+		if (pid == 0) { // filho
+			valor++;
+		} else { // pai -> Wait for a child matching PID to die.
+			valor--;
+			// waitpid(pid, NULL, 0); força pai a esperar filho terminar ants de serguir (print)
+		}
+	}
+
+	printf("valor = %d\n", valor);
+
+	return 0;
 }
 
 /*

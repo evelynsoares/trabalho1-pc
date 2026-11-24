@@ -1,0 +1,17 @@
+# Estilo dos códigos da disciplina: indentação com TAB (largura 4).
+# Uso: clang-format -i arquivo.c   (ou Shift+Alt+F no VS Code)
+BasedOnStyle: LLVM
+UseTab: ForIndentation          # tab para indentar, espaço só para alinhar
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 0                  # não quebra/junta linhas por tamanho
+BreakBeforeBraces: Attach       # { na mesma linha
+IndentCaseLabels: true
+PointerAlignment: Right         # int *p
+SortIncludes: Never
+MaxEmptyLinesToKeep: 2
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never

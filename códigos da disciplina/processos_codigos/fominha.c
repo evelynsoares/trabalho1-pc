@@ -2,19 +2,19 @@
 #include <unistd.h>
 
 int main() {
-  pid_t pid;
+	pid_t pid;
 
-  pid = fork();
+	pid = fork();
 
-  if (pid > 0) {
-    printf("Processo fominha entrando automaticamente em segundo plano ... meu PID: %d\n", pid);
-    return 0;
-  }
+	if (pid > 0) {
+		printf("Processo fominha entrando automaticamente em segundo plano ... meu PID: %d\n", pid);
+		return 0;
+	}
 
-  int x=0;
-  while (1) {
-    x ++;
-  }
+	int x = 0;
+	while (1) {
+		x++;
+	}
 
-  return 0;
+	return 0;
 }
